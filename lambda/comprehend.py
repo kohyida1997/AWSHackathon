@@ -38,8 +38,8 @@ def lambda_handler(event, context):
 
     input_s3_url = "s3://comprehend-raw-data/Questions.csv"
     input_doc_format = "ONE_DOC_PER_LINE"
-    output_s3_url = "s3://hackathon-comprehend-raw-results" # TODO check role permission
-    data_access_role_arn = "arn:aws:iam::322895421085:role/comprehend-s3-access"
+    output_s3_url = "s3://hackathon-comprehend-raw-results"
+    data_access_role_arn = "arn:aws:iam::322895421085:role/comprehend-s3-access"  # TODO check role permission
     number_of_topics = 10
 
     input_data_config = {"S3Uri": input_s3_url, "InputFormat": input_doc_format}
