@@ -22,6 +22,7 @@ def start_sentiment_analysis(comprehend, input_data_config, output_data_config, 
     start_sentiment_detection_job_result = comprehend.start_sentiment_detection_job(InputDataConfig=input_data_config,
                                                                                     OutputDataConfig=output_data_config,
                                                                                     DataAccessRoleArn=data_access_role_arn,
+                                                                                    LanguageCode='en',
                                                                                     JobName=job_name)
 
     print('start_sentiment_detection_job_result: ',
@@ -38,7 +39,7 @@ def lambda_handler(event, context):
             'statusCode': 400,
             'body': json.dumps('No file!')
         }
-        
+    data_access_role_arn = 'arn:aws:iam::322895421085:role/comprehend-s3-access'
     comprehend = boto3.client(service_name='comprehend', region_name='ap-southeast-1')
     s3 = boto3.client('s3')
 
@@ -55,13 +56,13 @@ def lambda_handler(event, context):
     
     if event["Topic"]: 
         topic_job_id = start_topic_modelling(
-            comprehend, input_data_config, output_data_config, number_of_topics, topic_job_name)
+            comprehend, input_data_config, output_data_config, data_access_role_arn, number_of_topics, topic_job_name)
         describe_topics_detection_job_result = comprehend.describe_topics_detection_job(JobId=topic_job_id)
         print('describe_topics_detection_job_result: ', describe_topics_detection_job_result)
         
     if event["Sentiment"]:
         sentiment_job_id = start_sentiment_analysis(
-            comprehend, input_data_config, output_data_config, number_of_topics, sentiment_job_name)
+            comprehend, input_data_config, output_data_config, data_access_role_arn, number_of_topics, sentiment_job_name)
         describe_sentiment_detection_job_result = comprehend.describe_sentiment_detection_job(JobId=sentiment_job_id)
         print('describe_sentiment_detection_job_result: ', describe_sentiment_detection_job_result)
     
