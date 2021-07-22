@@ -16,7 +16,7 @@ def unzip_topics_output(s3_client, src_bucket, gzipped_key, dest_bucket, dest_ke
         for tar_resource in tar:
             if (tar_resource.isfile()):
                 inner_file_bytes = tar.extractfile(tar_resource).read()
-                key = dest_key + tar_resource.name
+                key = dest_key + "-" + tar_resource.name
                 s3_client.upload_fileobj(
                     BytesIO(inner_file_bytes), Bucket=dest_bucket, Key=key)
 
@@ -30,35 +30,46 @@ def process_sentiment_output(s3_client, src_bucket, gzipped_key, score_types, de
         for tar_resource in tar:
             if (tar_resource.isfile()):
                 inner_file_bytes = tar.extractfile(tar_resource).read()
+                data = pd.read_json(inner_file_bytes, lines=True)
+            
+                for t in score_types:
+                    data['SentimentScore'].apply(
+                        lambda x: x['Positive'] if type(x) == dict else 0)
+            
+                data.drop(columns=['SentimentScore', 'File'], inplace=True)
+            
+                if 'ErrorCode' in data.columns:
+                    data.drop(columns='ErrorCode', inplace=True)
+            
+                if 'ErrorMessage' in data.columns:
+                    data.drop(columns='ErrorMessage', inplace=True)
+            
+                s3_client.put_object(ACL='bucket-owner-full-control',
+                                     Body=data.to_csv(), Bucket=dest_bucket, Key=dest_key + '.csv')
 
-    data = pd.read_json(inner_file_bytes, lines=True)
-
-    for t in score_types:
-        data['SentimentScore'].apply(
-            lambda x: x['Positive'] if type(x) == dict else 0)
-
-    data.drop(columns=['SentimentScore', 'File'], inplace=True)
-
-    if 'ErrorCode' in data.columns:
-        data.drop(columns='ErrorCode', inplace=True)
-
-    if 'ErrorMessage' in data.columns:
-        data.drop(columns='ErrorMessage', inplace=True)
-
-    s3_client.put_object(ACL='bucket-owner-full-control',
-                         Body=data.to_csv(), Bucket=dest_bucket, Key=dest_key+tar_resource.name)
-
+def get_job_id(key):
+    res = ""
+    if key.find('TOPICS') > -1:
+        loc = key.find('TOPICS') + len("TOPICS") + 1
+        while key[loc] != '/':
+            res = res + key[loc]
+            loc = loc + 1
+    elif key.find('SENTIMENT') > -1:
+        loc = key.find('SENTIMENT') + len("SENTIMENT") + 1
+        while key[loc] != '/': 
+            res = res + key[loc]
+            loc = loc + 1
+    return res
+    
 
 def lambda_handler(event, context):
-    # raw_bucket = event['Records'][0]['s3']['bucket']['name']
-    gzipped_key = urllib.parse.unquote_plus(
-        event['Records'][0]['s3']['object']['key'], encoding='utf-8')
+    raw_bucket = os.environ['SRC_BUCKET']
+    gzipped_key = urllib.parse.unquote_plus(event['Records'][0]['s3']['object']['key'], encoding='utf-8')
     # setup constants
-    job_id = event['JobId']
-    raw_bucket = "hackathon-comprehend-raw-results"
-    # processed_bucket = os.environ['DEST_BUCKET']
-    processed_bucket = "hackathon-comprehend-processed-results"
-    # gzipped_key = "322895421085-TOPICS-" + job_id + "/output/output.tar.gz"
+    
+    job_id = get_job_id(gzipped_key)
+    print(gzipped_key, job_id)
+    processed_bucket = os.environ['DEST_BUCKET']
     processed_key_topics = "TOPICS-output-" + job_id
     processed_key_sentiment = "SENTIMENT-output-" + job_id
     score_types = ["Mixed", "Negative", "Neutral", "Positive"]
@@ -69,11 +80,11 @@ def lambda_handler(event, context):
     if gzipped_key.find('TOPICS') > -1:
         unzip_topics_output(s3_client, raw_bucket, gzipped_key,
                             processed_bucket, processed_key_topics)
-    elif gzipped_key.find('SENTIMENTS') > -1:
+    elif gzipped_key.find('SENTIMENT') > -1:
         process_sentiment_output(s3_client, raw_bucket, gzipped_key,
                                  score_types, processed_bucket, processed_key_sentiment)
 
-    return {
-        'statusCode': 200,
-        'body': json.dumps('Hello from Lambda!')
-    }
+    # return {
+    #     'statusCode': 200,
+    #     'body': json.dumps('Hello from Lambda!')
+    # }
