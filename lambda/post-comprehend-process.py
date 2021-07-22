@@ -33,8 +33,8 @@ def process_sentiment_output(s3_client, src_bucket, gzipped_key, score_types, de
                 data = pd.read_json(inner_file_bytes, lines=True)
             
                 for t in score_types:
-                    data['SentimentScore'].apply(
-                        lambda x: x['Positive'] if type(x) == dict else 0)
+                    data[t] = data['SentimentScore'].apply(
+                        lambda x: x[t] if type(x) == dict else 0)
             
                 data.drop(columns=['SentimentScore', 'File'], inplace=True)
             
