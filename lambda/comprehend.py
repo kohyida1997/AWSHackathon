@@ -36,7 +36,7 @@ def lambda_handler(event, context):
     comprehend = boto3.client(service_name='comprehend', region_name='ap-southeast-1')
     s3 = boto3.client('s3')
 
-    input_s3_url = "s3://comprehend-raw-data/Questions.csv"
+    input_s3_url = "s3://hackathon-cleaned-data/Questions.csv"
     input_doc_format = "ONE_DOC_PER_LINE"
     output_s3_url = "s3://hackathon-comprehend-raw-results"
     data_access_role_arn = "arn:aws:iam::322895421085:role/comprehend-s3-access"  # TODO check role permission
