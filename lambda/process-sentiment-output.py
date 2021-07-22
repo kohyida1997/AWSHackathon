@@ -2,7 +2,7 @@ import pandas as pd
 
 
 def process_sentiment_output(s3_client, src_bucket, src_key, score_types, dest_bucket, dest_key):
-    response = s3_client.get_object(Bucket=bucket, Key=src_key)
+    response = s3_client.get_object(Bucket=src_bucket, Key=src_key)
     body = response['Body']
 
     data = pd.read_json(body, lines=True)
