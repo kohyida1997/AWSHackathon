@@ -13,7 +13,7 @@ def clean(csvFile):
     for row in reader:
         for k, v in row.items():
             columns[k].append(v)
-    required_cols = ['id', 'text', 'timestamp']
+    required_cols = ['text', 'timestamp']
 
     for col_name in required_cols:
         if col_name not in columns:
@@ -21,17 +21,24 @@ def clean(csvFile):
     columns['text'] = [clean_text(x) for x in columns['text']]
 
     # combine back to csv
-    rows = ["id,text,timestamp"]
-    for idx in range(len(columns['id'])):
-        row_id = columns['id'][idx]
-        text = columns['text'][idx]
+    # rows = ["id,text,timestamp"]
+    n = len(columns["text"])
+    textTimestampHasHeader = ["text,timestamp"]
+    textNoHeader = []
+    for idx in range(n):
+        # row_id = columns['id'][idx]
         timestamp = columns['timestamp'][idx]
-        row = f"{row_id},{text},{timestamp}"
-        if row_id != '' and text != '' and timestamp != '':
-            print(row)
-            rows.append(row)
+        text = columns['text'][idx]
+        if text != '' and timestamp != '':
+            print(f"{text},{timestamp}")
+            textTimestampHasHeader.append(f"{text},{timestamp}")
+        if text != '':
+            textNoHeader.append(f"{text}")
 
-    return "\n".join(rows)
+    textNoHeaderRows = "\n".join(textNoHeader)
+    textTimestampHasHeaderRows = "\n".join(textTimestampHasHeader)
+
+    return textNoHeaderRows, textTimestampHasHeaderRows
 
 def remove_numbers(text):
     return re.sub(r'\d+', '', text)
@@ -45,7 +52,7 @@ def remove_html_tags(text):
     return p.sub('', text)
 
 def tokenize(text):
-    return re.split("\W+", text)
+    return re.split("\W+", text.strip())
 
 def remove_stopwords(tokens):
     # stopwords = nltk.corpus.stopwords.words('english')
@@ -106,7 +113,7 @@ if __name__ == "__main__":
             for j in range(len(row)):
                 if j == timestamp_idx or j == id_idx:
                     continue
-                text = row[j]
+                text = row[j] # basic cleaning to remove newlines, else later csvReader has issues
                 text = remove_newlines(text)
                 tokens = tokenize(text)
                 row[j] = " ".join(tokens)
@@ -116,6 +123,8 @@ if __name__ == "__main__":
         new_csv = "\n".join(new_rows)
         in_file_subset = io.StringIO(new_csv)
 
-        cleaned_str = clean(in_file_subset)
-        with open(f"clean/cleaned-{filename}", mode="w", encoding="utf-8") as out_file:
-            out_file.write(cleaned_str)
+        cleaned_text, cleaned_text_timestamp = clean(in_file_subset)
+        with open(f"clean/text-{filename}", mode="w", encoding="utf-8") as out_file:
+            out_file.write(cleaned_text)
+        with open(f"clean/text-timestamp-{filename}", mode="w", encoding="utf-8") as out_file:
+            out_file.write(cleaned_text_timestamp)

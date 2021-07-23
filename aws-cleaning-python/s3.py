@@ -4,6 +4,14 @@ from botocore.exceptions import ClientError
 
 s3_client = boto3.client('s3')
 
+def put_object(body, bucket, key):
+    try:
+        response = s3_client.put_object(ACL='bucket-owner-full-control', Body=body, Bucket=bucket, Key=key)
+    except ClientError as e:
+        logging.error(e)
+        return False
+    return True
+
 def upload_fileobj(fileobj, bucket, key, extraArgs=None, callback=None, config=None):
     try:
         response = s3_client.upload_fileobj(fileobj, bucket, key, extraArgs, callback, config)
