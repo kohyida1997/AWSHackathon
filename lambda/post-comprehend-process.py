@@ -8,7 +8,41 @@ import boto3
 import pandas as pd
 
 
-def unzip_topics_output(s3_client, src_bucket, gzipped_key, dest_bucket, dest_key):
+def get_docname_prefix_from_doc_topics_output(df):
+    idx_to_split = df['docname'].loc[0].find(':')
+    return df['docname'].loc[0][:idx_to_split + 1]
+
+
+def get_docname_added_csv(df, docname_prefix):
+    df['docname'] = docname_prefix + df.index.astype(str)
+    return df
+
+
+def create_enriched_csv_with_text_timestamp_and_topics(text_timestamps, topics_output):
+    docname_prefix = get_docname_prefix_from_doc_topics_output(topics_output)
+    temp_csv_with_docnames = get_docname_added_csv(
+        text_timestamps, docname_prefix)
+    dominant_topic_key = 'dominant_topic'
+    proportion_key = 'proportion'
+
+    temp_csv_with_docnames[dominant_topic_key] = -1
+    temp_csv_with_docnames[proportion_key] = -1
+
+    for index, row in temp_csv_with_docnames.iterrows():
+        docname_for_this_row = row['docname']
+        id_max = topics_output[topics_output['docname'] == docname_for_this_row][[
+            'proportion']].idxmax()
+        dominant_topic_for_this_row = int(topics_output.loc[id_max]['topic'])
+        proportion_for_this_dominant_topic = float(
+            topics_output.loc[id_max]['proportion'])
+        temp_csv_with_docnames.at[index,
+                                  dominant_topic_key] = dominant_topic_for_this_row
+        temp_csv_with_docnames.at[index,
+                                  proportion_key] = proportion_for_this_dominant_topic
+    return temp_csv_with_docnames
+
+
+def unzip_topics_output(s3_client, src_bucket, gzipped_key, dest_bucket, dest_key, cleaned_bucket, text_timestamps_key):
     input_tar_file = s3_client.get_object(Bucket=src_bucket, Key=gzipped_key)
     input_tar_content = input_tar_file['Body'].read()
 
@@ -17,8 +51,22 @@ def unzip_topics_output(s3_client, src_bucket, gzipped_key, dest_bucket, dest_ke
             if (tar_resource.isfile()):
                 inner_file_bytes = tar.extractfile(tar_resource).read()
                 key = dest_key + "-" + tar_resource.name
-                s3_client.upload_fileobj(
-                    BytesIO(inner_file_bytes), Bucket=dest_bucket, Key=key)
+                topics_output = pd.read_csv(BytesIO(inner_file_bytes))
+
+                if tar_resource.name.find('doc-topics') > -1:
+                    docname_prefix = get_docname_prefix_from_doc_topics_output(
+                        topics_output)
+                    text_timestamps = pd.read_csv(BytesIO(s3_client.get_object(
+                        Bucket=cleaned_bucket, Key=text_timestamps_key)['Body'].read()))
+                    text_timestamps_docname = get_docname_added_csv(
+                        text_timestamps, docname_prefix)
+                    final_output = create_enriched_csv_with_text_timestamp_and_topics(
+                        text_timestamps, topics_output)
+                else:
+                    final_output = pd.read_csv(BytesIO(inner_file_bytes))
+
+                s3_client.put_object(Body=final_output.to_csv(
+                    index=False), Bucket=dest_bucket, Key=key, ACL='bucket-owner-full-control')
 
 
 def process_sentiment_output(s3_client, src_bucket, gzipped_key, score_types, dest_bucket, dest_key):
@@ -47,6 +95,7 @@ def process_sentiment_output(s3_client, src_bucket, gzipped_key, score_types, de
                 s3_client.put_object(ACL='bucket-owner-full-control',
                                      Body=data.to_csv(), Bucket=dest_bucket, Key=dest_key + '.csv')
 
+
 def get_job_id(key):
     res = ""
     if key.find('TOPICS') > -1:
@@ -70,16 +119,32 @@ def lambda_handler(event, context):
     job_id = get_job_id(gzipped_key)
     print(gzipped_key, job_id)
     processed_bucket = os.environ['DEST_BUCKET']
+    cleaned_bucket = '' # Change accordingly
     processed_key_topics = "TOPICS-output-" + job_id
     processed_key_sentiment = "SENTIMENT-output-" + job_id
+    text_timestamps_key = '' # Change accordingly
     score_types = ["Mixed", "Negative", "Neutral", "Positive"]
+
+
+    # Change this accordingly
+    text_and_timestamps_original_input_file_path = 'text-timestamp-questions-only-title.csv' # Change this to read the text-timestamps doc from cleaned bucket
+    topic_modelling_doc_topics_output_file_path = processed_key_topics + '-doc-topics.csv'
+
+    enriched_csv_with_text_timestamps_and_topics = (
+        create_enriched_csv_with_text_timestamp_and_topics(
+            text_and_timestamps_original_input_file_path, topic_modelling_doc_topics_output_file_path))
+
+    enriched_csv_file_path = text_and_timestamps_original_input_file_path.replace(
+        '.csv', '-enriched.csv')
+
+    enriched_csv_with_text_timestamps_and_topics.to_csv(enriched_csv_file_path, index=False)
 
     # initialize s3 client
     s3_client = boto3.client('s3')
 
     if gzipped_key.find('TOPICS') > -1:
         unzip_topics_output(s3_client, raw_bucket, gzipped_key,
-                            processed_bucket, processed_key_topics)
+                            processed_bucket, processed_key_topics, cleaned_bucket, text_timestamps_key) 
     elif gzipped_key.find('SENTIMENT') > -1:
         process_sentiment_output(s3_client, raw_bucket, gzipped_key,
                                  score_types, processed_bucket, processed_key_sentiment)
