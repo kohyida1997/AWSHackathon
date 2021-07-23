@@ -57,7 +57,7 @@ def process_topics_output(s3_client, src_bucket, gzipped_key, dest_bucket, dest_
                     docname_prefix = get_docname_prefix_from_doc_topics_output(
                         topics_output)
                     print(docname_prefix)
-                    text_timestamps_key = 'timestamp-' + docname_prefix
+                    text_timestamps_key = 'timestamp-' + docname_prefix[:-2]
                     text_timestamps = pd.read_csv(BytesIO(s3_client.get_object(
                         Bucket=cleaned_bucket, Key=text_timestamps_key)['Body'].read()))
                     text_timestamps_docname = get_docname_added_csv(
