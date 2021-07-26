@@ -56,8 +56,7 @@ def process_topics_output(s3_client, src_bucket, gzipped_key, dest_bucket, dest_
                 if tar_resource.name.find('doc-topics') > -1:
                     docname_prefix = get_docname_prefix_from_doc_topics_output(
                         topics_output)
-                    print(docname_prefix)
-                    text_timestamps_key = 'timestamp-' + docname_prefix[:-2]
+                    text_timestamps_key = 'timestamp-' + docname_prefix[:-1]
                     text_timestamps = pd.read_csv(BytesIO(s3_client.get_object(
                         Bucket=cleaned_bucket, Key=text_timestamps_key)['Body'].read()))
                     text_timestamps_docname = get_docname_added_csv(
@@ -95,7 +94,7 @@ def process_sentiment_output(s3_client, src_bucket, gzipped_key, score_types, de
                     data.drop(columns='ErrorMessage', inplace=True)
             
                 s3_client.put_object(ACL='bucket-owner-full-control',
-                                     Body=data.to_csv(), Bucket=dest_bucket, Key=dest_key + '.csv')
+                                     Body=data.to_csv(index=False), Bucket=dest_bucket, Key=dest_key + '.csv')
 
 
 def get_job_id(key):
