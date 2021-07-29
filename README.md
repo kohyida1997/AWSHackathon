@@ -1,4 +1,4 @@
-# GSHackathonGroup3
+# AWSHackathon
 
 ## GoldSight - A Text Analysis Tool To Help Understand Your Users and Developers Better
 
